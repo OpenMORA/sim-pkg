@@ -68,8 +68,9 @@ protected:
 	bool								m_enable_laser;
 	bool								m_enable_infrared;
 	mrpt::gui::CDisplayWindow3DPtr   	m_3dview;
-	mrpt::utils::CRobotSimulator			m_robotsim;
+	mrpt::utils::CRobotSimulator		m_robotsim;
 	mrpt::slam::CMultiMetricMap			m_map;
+	mrpt::system::TTimeStamp			last_iter;
 
 	unsigned int	m_laser_rays;
 	double			m_laser_fov;

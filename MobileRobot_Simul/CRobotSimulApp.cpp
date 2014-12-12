@@ -96,8 +96,9 @@ CRobotSimulApp::~CRobotSimulApp()
 
 bool CRobotSimulApp::OnStartUp()
 {
-	EnableCommandMessageFiltering(true);
+	cout << "CONFIGURING MODULE" << endl;
 
+	EnableCommandMessageFiltering(true);
     DoRegistrations();
 
     try
@@ -178,6 +179,7 @@ bool CRobotSimulApp::OnStartUp()
 
 		m_laser_fov = DEG2RAD( m_ini.read_double("","laser_fov_deg",RAD2DEG(m_laser_fov)) );
 
+		last_iter = mrpt::system::now();
 		OnSimulReset();
 		return true;
     }
@@ -213,8 +215,9 @@ bool CRobotSimulApp::OnSimulReset ()
 {
 	try
 	{
+		cout << "[RobotSimul]: Reseting system" << endl;
 		m_robotsim.resetStatus();
-		m_last_v = m_last_w = 0;
+		m_last_v = m_last_w = 0.0;
 	}
 	catch (std::exception &e)
 	{
@@ -229,10 +232,14 @@ bool CRobotSimulApp::OnSimulReset ()
 
 bool CRobotSimulApp::Iterate()
 {
-    double At = GetTimeSinceIterate();
+    //double At = GetTimeSinceIterate();
+	double At;
+	At = mrpt::system::timeDifference( last_iter,mrpt::system::now() );
+	last_iter = mrpt::system::now();
+	cout << "Iterate time: " << At << endl;
     if (At<0 || At>10.0) At=0;
 
-	// Send the robot the last motion command:
+	// Send the robot the last motion command:	
 	m_robotsim.movementCommand(m_last_v,m_last_w);
 
     // Simulate a time interval:
@@ -245,14 +252,13 @@ bool CRobotSimulApp::Iterate()
     m_robotsim.getRealPose(realPose);
 	CObservation2DRangeScan 	scan;
 
-    if (m_enable_laser)
-    {
 
+    if (m_enable_laser)
+    {		
 		scan.aperture = m_laser_fov;
 		scan.maxRange = m_laser_maxrange;
 		scan.sensorPose = m_laser_pose;
 		scan.sensorLabel = "LASER1";
-
 
 		m_map.m_gridMaps[0]->laserScanSimulator(
 			scan,
@@ -263,9 +269,13 @@ bool CRobotSimulApp::Iterate()
 			1,
 			m_laser_std_ang );
 
-		//!  @moos_publish   LASER1   The laser scan, as a "CObservation2DRangeScan" passed through "ObjectToString".
-		string sLaser1 = ObjectToString(&scan);
-		m_Comms.Notify("LASER1", sLaser1 );
+		//!  @moos_var   <SENSOR_LABEL>   The Laser scan "CObservation2DRangeScan" parsed as a std::vector<uint8_t> through ObjectToOctetVector
+		mrpt::vector_byte bObs;
+		mrpt::slam::CObservation *obs_pointer;
+		obs_pointer = &scan;
+		mrpt::utils::ObjectToOctetVector(obs_pointer, bObs);
+		m_Comms.Notify(scan.sensorLabel, bObs );
+		cout << "Laser sent" << endl;
     }
 
 	if (m_enable_sonar)
@@ -288,8 +298,12 @@ bool CRobotSimulApp::Iterate()
 			m_sonar_std_range, m_sonar_std_ang );
 
 		//!  @moos_publish   SONAR1   Sonar ranges, as a "CObservationRange" passed through "ObjectToString".
-		string sSonar1 = ObjectToString(&sonar);
-		m_Comms.Notify("SONAR1", sSonar1 );
+		mrpt::vector_byte bObs;
+		mrpt::slam::CObservation *obs_pointer;
+		obs_pointer = &sonar;
+		mrpt::utils::ObjectToOctetVector(obs_pointer, bObs);
+		m_Comms.Notify(sonar.sensorLabel, bObs );
+		cout << "Sonar sent" << endl;
 	}
 
 	if (m_enable_infrared)
@@ -312,8 +326,12 @@ bool CRobotSimulApp::Iterate()
 			m_ir_std_range, m_ir_std_ang );
 
 		//!  @moos_publish   INFRARED1   Infrared ranges, as a "CObservationRange" passed through "ObjectToString".
-		string sIR1 = ObjectToString(&ir);
-		m_Comms.Notify("INFRARED1", sIR1 );
+		mrpt::vector_byte bObs;
+		mrpt::slam::CObservation *obs_pointer;
+		obs_pointer = &ir;
+		mrpt::utils::ObjectToOctetVector(obs_pointer, bObs);
+		m_Comms.Notify(ir.sensorLabel, bObs );
+		cout << "IR sent" << endl;
 	}
 
 
@@ -324,10 +342,9 @@ bool CRobotSimulApp::Iterate()
 	//!  @moos_publish   ODOMETRY   The robot absolute odometry in format "[x y phi]"
 	string sOdo;
 	odo.asString(sOdo);
-    m_Comms.Notify("ODOMETRY", sOdo );
+    m_Comms.Notify("ODOMETRY", sOdo );	
 
-
-	//!  @moos_publish   <ODOMETRY_OBS> The robot absolute odometry as observation
+	// Publish complete odometry as CObservation:
 	mrpt::slam::CObservationOdometryPtr odom = mrpt::slam::CObservationOdometry::Create();
 	odom->odometry = odo;
 	odom->timestamp = mrpt::system::now();
@@ -338,10 +355,11 @@ bool CRobotSimulApp::Iterate()
 	odom->encoderLeftTicks = 0;
 	odom->encoderRightTicks = 0;
 
-	string sOdom = ObjectToString( odom.pointer() );
-	m_Comms.Notify("ODOMETRY_OBS", sOdom );
-
-
+	mrpt::vector_byte vec_odom;
+	mrpt::utils::ObjectToOctetVector(odom.pointer(), vec_odom);
+	//!  @moos_publish  ODOMETRY_OBS The robot absolute odometry as mrpt::slam::CObservationOdometry
+	m_Comms.Notify("ODOMETRY_OBS", vec_odom);
+	
 
 	// Update 3D view:
 	if (m_3dview.present())
@@ -428,9 +446,17 @@ bool CRobotSimulApp::OnNewMail(MOOSMSG_LIST &NewMail)
 	    const CMOOSMsg &m = *it;
 
 	    if (MOOSStrCmp(m.GetKey(),"MOTION_CMD_V"))
+		{
             m_last_v = m.GetDouble();
+			//cout << "New v= " << m_last_v << endl;
+		}
+
 	    if (MOOSStrCmp(m.GetKey(),"MOTION_CMD_W"))
+		{
             m_last_w = m.GetDouble();
+			//cout << "New w= " << m_last_w << endl;
+		}
+		
 		if( (MOOSStrCmp(m.GetKey(),"SHUTDOWN")) && (MOOSStrCmp(m.GetString(),"true")) )
 		{			
 			this->RequestQuit();
