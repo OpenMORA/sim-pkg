@@ -38,9 +38,9 @@
 #include <mrpt/opengl/CPointCloud.h>
 #include <mrpt/opengl/COpenGLScene.h>
 #include <mrpt/opengl/CPlanarLaserScan.h>
-#include <mrpt/slam/CObservationRange.h>
-#include <mrpt/slam/CObservationOdometry.h>
-#include <mrpt/slam/CObservation2DRangeScan.h>
+#include <mrpt/obs/CObservationRange.h>
+#include <mrpt/obs/CObservationOdometry.h>
+#include <mrpt/obs/CObservation2DRangeScan.h>
 
 #include <sstream>
 #include <iomanip>
@@ -143,7 +143,8 @@ bool CRobotSimulApp::OnStartUp()
 			if (!gridmap->loadFromBitmapFile(sGridmapFil,grid_res,grid_cx,grid_cy))
 				return MOOSFail("Error loading bitmap from image: '%s'", sGridmapFil.c_str() );
 
-			m_map.m_gridMaps.push_back(gridmap);
+			//m_map.m_gridMaps.push_back(gridmap);	//JGM 19-01-2015
+			m_map.m_gridMaps[0] = gridmap;
 		}
 		else
 			return MOOSFail("Neither 'simplemap_file' or 'gridmap_image_file' found in mission file. Quitting.");
@@ -292,7 +293,7 @@ bool CRobotSimulApp::Iterate()
 		for (size_t i=0;i<m_sonar_poses.size();i++)
 		{
 			sonar.sensedData[i].sensorID = i;
-			sonar.sensedData[i].sensorPose = TPose3D(m_sonar_poses[i]);
+			sonar.sensedData[i].sensorPose = mrpt::math::TPose3D(m_sonar_poses[i]);
 		}
 		m_map.m_gridMaps[0]->sonarSimulator(
 			sonar, realPose, 0.5,
@@ -320,7 +321,7 @@ bool CRobotSimulApp::Iterate()
 		for (size_t i=0;i<m_ir_poses.size();i++)
 		{
 			ir.sensedData[i].sensorID = i;
-			ir.sensedData[i].sensorPose = TPose3D(m_ir_poses[i]);
+			ir.sensedData[i].sensorPose = mrpt::math::TPose3D(m_ir_poses[i]);
 		}
 		m_map.m_gridMaps[0]->sonarSimulator(
 			ir, realPose, 0.5,
@@ -346,7 +347,7 @@ bool CRobotSimulApp::Iterate()
     m_Comms.Notify("ODOMETRY", sOdo );	
 
 	// Publish complete odometry as CObservation:
-	mrpt::slam::CObservationOdometryPtr odom = mrpt::slam::CObservationOdometry::Create();
+	mrpt::obs::CObservationOdometryPtr odom = mrpt::obs::CObservationOdometry::Create();
 	odom->odometry = odo;
 	odom->timestamp = mrpt::system::now();
 	odom->hasVelocities = false;
@@ -358,7 +359,7 @@ bool CRobotSimulApp::Iterate()
 
 	mrpt::vector_byte vec_odom;
 	mrpt::utils::ObjectToOctetVector(odom.pointer(), vec_odom);
-	//!  @moos_publish  ODOMETRY_OBS The robot absolute odometry as mrpt::slam::CObservationOdometry
+	//!  @moos_publish  ODOMETRY_OBS The robot absolute odometry as mrpt::obs::CObservationOdometry
 	m_Comms.Notify("ODOMETRY_OBS", vec_odom);
 	
 
@@ -367,7 +368,7 @@ bool CRobotSimulApp::Iterate()
 	{
 		// If present, parse PF particles just to visualize them:
 		CMOOSVariable *varLocParts = GetMOOSVar("LOCALIZATION_PARTICLES");
-		CMatrixDouble parts_display;
+		mrpt::math::CMatrixDouble parts_display;
 		if (varLocParts && varLocParts->IsFresh())
 		{
 			varLocParts->SetFresh(false);

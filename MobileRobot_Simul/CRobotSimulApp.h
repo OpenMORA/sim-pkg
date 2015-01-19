@@ -31,7 +31,7 @@
 
 #include <COpenMORAMOOSApp.h>
 
-#include <mrpt/slam/CMultiMetricMap.h>
+#include <mrpt/maps/CMultiMetricMap.h>
 #include <mrpt/gui/CDisplayWindow3D.h>
 #include <mrpt/utils/CRobotSimulator.h>
 #include <mrpt/poses/CPose3D.h>
@@ -69,7 +69,7 @@ protected:
 	bool								m_enable_infrared;
 	mrpt::gui::CDisplayWindow3DPtr   	m_3dview;
 	mrpt::utils::CRobotSimulator		m_robotsim;
-	mrpt::slam::CMultiMetricMap			m_map;
+	mrpt::maps::CMultiMetricMap			m_map;	
 	mrpt::system::TTimeStamp			last_iter;
 
 	unsigned int	m_laser_rays;
