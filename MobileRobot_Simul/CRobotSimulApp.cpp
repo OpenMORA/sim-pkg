@@ -49,11 +49,12 @@
 using namespace std;
 
 using namespace mrpt;
-using namespace mrpt::slam;
 using namespace mrpt::utils;
 using namespace mrpt::gui;
 using namespace mrpt::poses;
 using namespace mrpt::opengl;
+using namespace mrpt::maps;
+using namespace mrpt::obs;
 
 
 CRobotSimulApp::CRobotSimulApp() :
@@ -271,7 +272,7 @@ bool CRobotSimulApp::Iterate()
 
 		//!  @moos_var   <SENSOR_LABEL>   The Laser scan "CObservation2DRangeScan" parsed as a std::vector<uint8_t> through ObjectToOctetVector
 		mrpt::vector_byte bObs;
-		mrpt::slam::CObservation *obs_pointer;
+		mrpt::obs::CObservation *obs_pointer;
 		obs_pointer = &scan;
 		mrpt::utils::ObjectToOctetVector(obs_pointer, bObs);
 		m_Comms.Notify(scan.sensorLabel, bObs );
@@ -299,7 +300,7 @@ bool CRobotSimulApp::Iterate()
 
 		//!  @moos_publish   SONAR1   Sonar ranges, as a "CObservationRange" passed through "ObjectToString".
 		mrpt::vector_byte bObs;
-		mrpt::slam::CObservation *obs_pointer;
+		mrpt::obs::CObservation *obs_pointer;
 		obs_pointer = &sonar;
 		mrpt::utils::ObjectToOctetVector(obs_pointer, bObs);
 		m_Comms.Notify(sonar.sensorLabel, bObs );
@@ -327,7 +328,7 @@ bool CRobotSimulApp::Iterate()
 
 		//!  @moos_publish   INFRARED1   Infrared ranges, as a "CObservationRange" passed through "ObjectToString".
 		mrpt::vector_byte bObs;
-		mrpt::slam::CObservation *obs_pointer;
+		mrpt::obs::CObservation *obs_pointer;
 		obs_pointer = &ir;
 		mrpt::utils::ObjectToOctetVector(obs_pointer, bObs);
 		m_Comms.Notify(ir.sensorLabel, bObs );
