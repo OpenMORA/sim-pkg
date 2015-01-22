@@ -59,16 +59,11 @@ using namespace mrpt::obs;
 
 CRobotSimulApp::CRobotSimulApp() :
 	m_last_v(0), m_last_w(0),
-	m_enable_sonar(true),
+	m_enable_sonar(false),
 	m_enable_laser(true),
-	m_enable_infrared(true),
+	m_enable_infrared(false),
+	m_enable_rangecamera(false),
 	m_robotsim(0,0),
-	m_laser_rays(181),
-	m_laser_fov(M_PI),
-	m_laser_std_range(0.01),
-	m_laser_std_ang(DEG2RAD(0.01)),
-	m_laser_maxrange(81),
-	m_laser_pose(),
 	m_sonar_minrange(0.1), m_sonar_maxrange(5.0),
 	m_sonar_std_range(0.1), m_sonar_std_ang(DEG2RAD(2)),
 	m_sonar_aperture(DEG2RAD(20)),
@@ -76,6 +71,24 @@ CRobotSimulApp::CRobotSimulApp() :
 	m_ir_std_range(0.005), m_ir_std_ang(DEG2RAD(0.5)),
 	m_ir_aperture(DEG2RAD(2))
 {
+	//Default laser initialization
+	m_laser.m_rays = 181;
+	m_laser.m_fov = M_PI;
+	m_laser.m_std_range = 0.01;
+	m_laser.m_std_ang = DEG2RAD(0.01);
+	m_laser.m_maxrange = 81;
+	m_laser.m_pose.setFromValues(0, 0, 0, DEG2RAD(0), 0, 0); //Pitch and roll must always be 0!!
+
+	//Default range camera initialization
+	m_rangecam.m_min_range = 0.5f;
+	m_rangecam.m_max_range = 5.f;
+	m_rangecam.m_fov_v = DEG2RAD(45.f);
+	m_rangecam.m_fov_h = DEG2RAD(60.f);
+	m_rangecam.m_rows = 15;
+	m_rangecam.m_columns = 20;
+	m_rangecam.m_std_error = 0.01f;
+	m_rangecam.m_pose.setFromValues(0, 0, 1, DEG2RAD(0), DEG2RAD(0), 0); //Roll must be always set to 0!!!
+	
 	// Default list of sonars to simulate:
 	m_sonar_poses.clear();
 	m_sonar_poses.push_back( CPose3D(0,0.3,0.3, DEG2RAD(90),DEG2RAD(0),DEG2RAD(0) ) );
@@ -91,9 +104,6 @@ CRobotSimulApp::CRobotSimulApp() :
 	m_ir_poses.push_back( CPose3D(0.1,-0.29,0.05, DEG2RAD(-45),DEG2RAD(0),DEG2RAD(0) ) );
 }
 
-CRobotSimulApp::~CRobotSimulApp()
-{
-}
 
 bool CRobotSimulApp::OnStartUp()
 {
@@ -113,6 +123,9 @@ bool CRobotSimulApp::OnStartUp()
 
 		//! @moos_param enable_infrared Enable simulating this sensor: "true"/"false"
 		m_enable_infrared = m_ini.read_bool("", "enable_infrared",m_enable_infrared);
+
+		//! @moos_param enable_rangecamera Enable simulating this sensor: "true"/"false"
+		m_enable_rangecamera = m_ini.read_bool("", "enable_rangecamera",m_enable_rangecamera);
 
 		string  sSimplemapFil;
 		string  sGridmapFil;
@@ -143,8 +156,8 @@ bool CRobotSimulApp::OnStartUp()
 			if (!gridmap->loadFromBitmapFile(sGridmapFil,grid_res,grid_cx,grid_cy))
 				return MOOSFail("Error loading bitmap from image: '%s'", sGridmapFil.c_str() );
 
-			//m_map.m_gridMaps.push_back(gridmap);	//JGM 19-01-2015
-			m_map.m_gridMaps[0] = gridmap;
+			m_map.m_gridMaps.push_back(gridmap);
+			//m_map.m_gridMaps[0] = gridmap;
 		}
 		else
 			return MOOSFail("Neither 'simplemap_file' or 'gridmap_image_file' found in mission file. Quitting.");
@@ -176,10 +189,16 @@ bool CRobotSimulApp::OnStartUp()
 			parts_gl->setName("particles");
 			scene->insert(parts_gl);
 
+			opengl::CPointCloudPtr rangecam_gl = opengl::CPointCloud::Create();
+			rangecam_gl->setName("rangecam");
+			rangecam_gl->setColor(0,0.8,0.1);
+			rangecam_gl->setPointSize(4.f);
+			scene->insert(rangecam_gl);
+
 			m_3dview->unlockAccess3DScene();
 		}
 
-		m_laser_fov = DEG2RAD( m_ini.read_double("","laser_fov_deg",RAD2DEG(m_laser_fov)) );
+		m_laser.m_fov = DEG2RAD( m_ini.read_double("","laser_fov_deg",RAD2DEG(m_laser.m_fov)) );
 
 		last_iter = mrpt::system::now();
 		OnSimulReset();
@@ -190,6 +209,7 @@ bool CRobotSimulApp::OnStartUp()
 		cerr << "**ERROR** " << e.what() << endl;
 		return MOOSFail( "Closing due to an exception." );
 	}
+	return true;
 }
 
 bool CRobotSimulApp::OnCommandMsg( CMOOSMsg Msg )
@@ -231,7 +251,6 @@ bool CRobotSimulApp::OnSimulReset ()
 }
 
 
-
 bool CRobotSimulApp::Iterate()
 {
     //double At = GetTimeSinceIterate();
@@ -257,19 +276,12 @@ bool CRobotSimulApp::Iterate()
 
     if (m_enable_laser)
     {		
-		scan.aperture = m_laser_fov;
-		scan.maxRange = m_laser_maxrange;
-		scan.sensorPose = m_laser_pose;
+		scan.aperture = m_laser.m_fov;
+		scan.maxRange = m_laser.m_maxrange;
+		scan.sensorPose = m_laser.m_pose;
 		scan.sensorLabel = "LASER1";
 
-		m_map.m_gridMaps[0]->laserScanSimulator(
-			scan,
-			realPose,
-			0.5,
-			m_laser_rays,
-			m_laser_std_range,
-			1,
-			m_laser_std_ang );
+		m_map.m_gridMaps[0]->laserScanSimulator( scan, realPose, 0.5, m_laser.m_rays, m_laser.m_std_range, 1, m_laser.m_std_ang );
 
 		//!  @moos_var   <SENSOR_LABEL>   The Laser scan "CObservation2DRangeScan" parsed as a std::vector<uint8_t> through ObjectToOctetVector
 		mrpt::vector_byte bObs;
@@ -279,6 +291,17 @@ bool CRobotSimulApp::Iterate()
 		m_Comms.Notify(scan.sensorLabel, bObs );
 		cout << "Laser sent" << endl;
     }
+
+	if (m_enable_rangecamera)
+	{
+		m_rangecam.CameraScan(*m_map.m_gridMaps[0], realPose);
+
+		// Publish detected poitns as OpenMORA variable
+		string sKinect1 = ObjectToString(&m_rangecam.m_points);
+		m_Comms.Notify("KINECT1", sKinect1 );
+		cout << "Point cloud (from range camera) sent" << endl;
+
+	}
 
 	if (m_enable_sonar)
 	{
@@ -408,8 +431,21 @@ bool CRobotSimulApp::Iterate()
 			}
 		}
 
-		m_3dview->unlockAccess3DScene();
+		//Point cloud from range camera
+		if (m_enable_rangecamera)
+		{
+			CRenderizablePtr  gl_rangecam = scene->getByName("rangecam");
+			if (gl_rangecam)
+			{
+				opengl::CPointCloudPtr  rangecam_gl = opengl::CPointCloudPtr(gl_rangecam);
+				std::vector<float> xp, yp, zp;
+				m_rangecam.m_points.getAllPoints(xp, yp, zp);
+				rangecam_gl->setAllPoints(xp, yp, zp);
+				rangecam_gl->setPose(realPose);
+			}
+		}
 
+		m_3dview->unlockAccess3DScene();
 		m_3dview->repaint();
 	}
 
