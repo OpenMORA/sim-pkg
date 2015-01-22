@@ -156,8 +156,8 @@ bool CRobotSimulApp::OnStartUp()
 			if (!gridmap->loadFromBitmapFile(sGridmapFil,grid_res,grid_cx,grid_cy))
 				return MOOSFail("Error loading bitmap from image: '%s'", sGridmapFil.c_str() );
 
-			m_map.m_gridMaps.push_back(gridmap);
-			//m_map.m_gridMaps[0] = gridmap;
+			//m_map.m_gridMaps.push_back(gridmap);
+			m_map.maps.push_back(gridmap);
 		}
 		else
 			return MOOSFail("Neither 'simplemap_file' or 'gridmap_image_file' found in mission file. Quitting.");
