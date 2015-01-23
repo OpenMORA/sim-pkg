@@ -297,8 +297,8 @@ bool CRobotSimulApp::Iterate()
 		m_rangecam.CameraScan(*m_map.m_gridMaps[0], realPose);
 
 		// Publish detected poitns as OpenMORA variable
-		string sKinect1 = ObjectToString(&m_rangecam.m_points);
-		m_Comms.Notify("KINECT1", sKinect1 );
+		string sRangeCam1 = ObjectToString(&m_rangecam.m_points);
+		m_Comms.Notify("RANGECAM1", sRangeCam1 );
 		cout << "Point cloud (from range camera) sent" << endl;
 
 	}
