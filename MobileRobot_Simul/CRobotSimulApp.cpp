@@ -364,14 +364,10 @@ bool CRobotSimulApp::Iterate()
 	CPose2D  odo;
 	m_robotsim.getOdometry(odo);
 
-	//!  @moos_publish   ODOMETRY   The robot absolute odometry in format "[x y phi]"
-	string sOdo;
-	odo.asString(sOdo);
-    m_Comms.Notify("ODOMETRY", sOdo );	
-
 	// Publish complete odometry as CObservation:
 	mrpt::obs::CObservationOdometryPtr odom = mrpt::obs::CObservationOdometry::Create();
 	odom->odometry = odo;
+	odom->sensorLabel = "ODOMETRY_BASE";
 	odom->timestamp = mrpt::system::now();
 	odom->hasVelocities = false;
 	odom->velocityLin = 0.0;
@@ -379,11 +375,10 @@ bool CRobotSimulApp::Iterate()
 	odom->hasEncodersInfo = false;
 	odom->encoderLeftTicks = 0;
 	odom->encoderRightTicks = 0;
-
 	mrpt::vector_byte vec_odom;
 	mrpt::utils::ObjectToOctetVector(odom.pointer(), vec_odom);
-	//!  @moos_publish  ODOMETRY_OBS The robot absolute odometry as mrpt::obs::CObservationOdometry
-	m_Comms.Notify("ODOMETRY_OBS", vec_odom);
+	//!  @moos_publish  ODOMETRY_OBS_BASE The robot absolute odometry as mrpt::obs::CObservationOdometry
+	m_Comms.Notify("ODOMETRY_OBS_BASE", vec_odom);
 	
 
 	// Update 3D view:
